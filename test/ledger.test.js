@@ -60,3 +60,16 @@ test('statusSummary counts', () => {
   assert.equal(s.watermarks.length, 1);
   assert.equal(s.rateDays, 1);
 });
+test('onchain overrides amount/payee/token, keeps sandbox product_id', () => {
+  const db = openLedger(':memory:');
+  // Sandbox-first with incorrect amount and payee
+  upsertSettlement(db, { ...base, tx_hash: '0xdef', ts: 1752700555, source: 'sandbox', amount_atomic: '1000000', payee: '0xw', product_id: 'soil-guide' });
+  // Onchain lands with correct amount and payee
+  upsertSettlement(db, { ...base, tx_hash: '0xdef', amount_atomic: '999999', payee: '0xcorrect', source: 'onchain' });
+  const [r] = settlementsBetween(db, 0, 2e12);
+  assert.equal(r.amount_atomic, '999999');  // onchain amount
+  assert.equal(r.payee, '0xcorrect');       // onchain payee
+  assert.equal(r.source, 'onchain');
+  assert.equal(r.product_id, 'soil-guide');  // sandbox product retained
+  assert.equal(r.token, 'USDC');  // default token (both rows use default)
+});
