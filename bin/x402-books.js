@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadConfig, ConfigError } from '../src/config.js';
-import { openLedger, statusSummary } from '../src/ledger.js';
+import { openLedger, statusSummary, settlementsAll } from '../src/ledger.js';
 import { ensureRates, RateError } from '../src/rates.js';
 import { ingestOnchain } from '../src/ingest/onchain.js';
 import { ingestSandbox } from '../src/ingest/sandbox.js';
@@ -79,7 +80,7 @@ export async function runCli(argv) {
       console.error(USAGE);
       return 2;
     }
-    if (cmd === 'report' && (!flags.period || !/^\d{4}-\d{2}$/.test(flags.period))) {
+    if (cmd === 'report' && (!flags.period || !/^\d{4}-(0[1-9]|1[0-2])$/.test(flags.period))) {
       console.error('report requires --period YYYY-MM\n' + USAGE);
       return 2;
     }
@@ -93,6 +94,13 @@ export async function runCli(argv) {
     }
     if (cmd === 'sync') {
       const incomplete = await doSync(db, cfg, flags);
+      const days = [...new Set(settlementsAll(db).map((r) => dayInTz(r.ts, cfg.timezone)))];
+      try {
+        await ensureRates(db, { days, baseCurrency: cfg.baseCurrency, staleOk: !!flags['stale-rates-ok'] });
+      } catch (e) {
+        if (!(e instanceof RateError)) throw e;
+        incomplete.push({ source: 'rates', reason: e.message });
+      }
       for (const e of incomplete) console.error(`INCOMPLETE ${e.source}: ${e.reason}`);
       return incomplete.length ? 1 : 0;
     }
@@ -152,6 +160,6 @@ export async function runCli(argv) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   process.exit(await runCli(process.argv.slice(2)));
 }

@@ -113,7 +113,9 @@ usage error.
   rounded lines, so tables always reconcile visually.
 - **Daily rates with provenance.** `USDC/USD` and `USD/<baseCurrency>` rates are fetched
   once per day and cached permanently — a re-run never re-fetches a cached day. Every
-  report footer states the provenance (source) per pair.
+  report footer states the provenance (source) per pair. ECB fiat rates are only
+  published on business days — weekend/holiday settlements automatically carry the last
+  published rate forward (the valuation CSV's rate column shows the carried value).
 - **Timezone attribution.** Every settlement is dated by converting its on-chain
   timestamp into the configured `timezone` — never `toISOString().slice(0,10)` — and
   every footer states which timezone was used.

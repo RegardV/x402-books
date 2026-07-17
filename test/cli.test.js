@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { openLedger, putRate } from '../src/ledger.js';
 import { runCli } from '../bin/x402-books.js';
@@ -55,6 +57,17 @@ test('usage error -> exit 2', async () => {
   const { cfgFile } = setup();
   assert.equal(await runCli(['report', '--config', cfgFile]), 2); // no --period
   assert.equal(await runCli(['bogus-command']), 2);
+  assert.equal(await runCli(['report', '--period', '2026-13', '--config', cfgFile]), 2); // impossible month
+});
+
+test('entrypoint runs via symlink (npm .bin case)', () => {
+  const binPath = fileURLToPath(new URL('../bin/x402-books.js', import.meta.url));
+  const dir = mkdtempSync(path.join(tmpdir(), 'link-'));
+  const link = path.join(dir, 'x402-books-link');
+  symlinkSync(binPath, link);
+  const res = spawnSync(process.execPath, [link], { encoding: 'utf8' });
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /Usage:/);
 });
 test('init writes and refuses to clobber', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'init-'));
