@@ -115,8 +115,12 @@ CREATE TABLE IF NOT EXISTS settlements (
   endpoint TEXT,                   -- from sandbox join
   rail TEXT,                       -- 'x402' when known
   facilitator_fee_atomic TEXT,     -- integer string when known, else NULL
-  UNIQUE (tx_hash, log_index, chain)
+  UNIQUE (tx_hash, chain)
 );
+-- ponytail ceiling: one settlement per tx per chain. A tx carrying two USDC
+-- transfers to the same wallet would record only one; ingester logs a warning.
+-- Upgrade path: widen key to include log_index and teach the sandbox ingester
+-- to join on-chain first.
 CREATE TABLE IF NOT EXISTS watermarks (
   source TEXT PRIMARY KEY,         -- 'onchain:base:0xwallet'
   value TEXT NOT NULL              -- last scanned block number
@@ -157,8 +161,12 @@ CREATE TABLE IF NOT EXISTS rates (
 
 ### `sandbox` (deep)
 
-- Reads each configured x402-sandbox SQLite (read-only). Maps its settlement rows
-  (tx hash, product, path, amount, ts) into the ledger via the upsert rules above.
+- Reads each configured x402-sandbox SQLite (read-only). Real schema (verified
+  2026-07-17): `settlements(ts TEXT-ISO, product_id FK, amount_usdc TEXT-decimal,
+  payer, tx_hash UNIQUE, network, facilitator, zar_value)` joined to
+  `products(sku, title, …)`. Mapping: ledger product_id = products.sku,
+  rail='x402', chain=network, amount parsed by string math to 6dp atomic units.
+  **Only mainnet rows (`network='base'`) are ingested** — testnet is noise in books.
 - Missing/unreadable DB file → structured error naming the path; other DBs continue.
 - Schema drift tolerated: reads by column name, ignores extras, errors clearly on
   missing required columns.
