@@ -45,3 +45,17 @@ test('packUs: period + YTD in USD at receipt', () => {
   assert.match(md, /1\.52/);
   assert.match(md, /Schedule C/);
 });
+test('journal: aggregate raw fees before rounding (regression)', () => {
+  const db = openLedger(':memory:');
+  const mk = (tx, atomic, fee) => upsertSettlement(db, { tx_hash: tx, chain: 'base', ts: Math.floor(Date.parse('2026-07-15T10:00:00Z') / 1000), payer: 'p', payee: 'w', amount_atomic: atomic, source: 'sandbox', product_id: 'test', facilitator_fee_atomic: fee });
+  mk('0xa', '100000', '3000');
+  mk('0xb', '100000', '3000');
+  mk('0xc', '100000', '3000');
+  putRate(db, { day: '2026-07-15', pair: 'USDC/USD', rate: 1.0, provenance: 't' });
+  putRate(db, { day: '2026-07-15', pair: 'USD/ZAR', rate: 1.0, provenance: 't' });
+  const { csv } = journalReport(db, CFG, '2026-07');
+  // Three settlements, each 0.003 USDC fee * 1.0 * 1.0 = 0.003 ZAR per settlement
+  // Individual: 0.003 -> rounds to 0.00
+  // Aggregate raw: 0.009 -> rounds to 0.01
+  assert.match(csv, /facilitator fees.*,0\.01,/);
+});
