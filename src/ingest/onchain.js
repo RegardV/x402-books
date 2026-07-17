@@ -121,7 +121,7 @@ export async function ingestOnchain(db, cfg, { fetchFn = globalThis.fetch, fromB
       if (action === 'inserted') inserted++; else updated++;
     }
     setWatermark(db, wmKey, String(head));
-    await sleep(sleepMs);
+    if (wallet !== cfg.wallets.at(-1)) await sleep(sleepMs); // throttle only between wallets
   }
   return { inserted, updated, warnings, toBlock: head };
 }
