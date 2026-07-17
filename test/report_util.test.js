@@ -1,13 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtUsdc, roundHalfUp, dayInTz, periodRows, banner } from '../src/report/util.js';
-import { openLedger, upsertSettlement } from '../src/ledger.js';
+import { fmtUsdc, roundHalfUp, dayInTz, periodRows, banner, mdCell, buildFooter } from '../src/report/util.js';
+import { openLedger, upsertSettlement, putRate } from '../src/ledger.js';
 
 test('fmtUsdc', () => {
   assert.equal(fmtUsdc('1000000'), '1.00');
   assert.equal(fmtUsdc('20000'), '0.02');
   assert.equal(fmtUsdc('1'), '0.000001');
   assert.equal(fmtUsdc('1500000'), '1.50');
+  assert.equal(fmtUsdc('-500000'), '-0.50');
+  assert.equal(fmtUsdc('-1500000'), '-1.50');
 });
 test('roundHalfUp', () => {
   assert.equal(roundHalfUp(1.005), 1.01);
@@ -32,4 +34,15 @@ test('banner empty and populated', () => {
   assert.equal(banner([]), '');
   assert.match(banner([{ source: 'onchain', reason: 'boom' }]), /INCOMPLETE/);
   assert.match(banner([{ source: 'onchain', reason: 'boom' }]), /boom/);
+});
+test('mdCell escapes pipes', () => {
+  assert.equal(mdCell('a|b'), 'a\\|b');
+  assert.equal(mdCell('normal'), 'normal');
+  assert.equal(mdCell('a|b|c'), 'a\\|b\\|c');
+});
+test('buildFooter includes rate provenance', () => {
+  const db = openLedger(':memory:');
+  putRate(db, { pair: 'USDC/USD', day: '2026-07-01', rate: '1.00', provenance: 'ccxt-kraken' });
+  const footer = buildFooter(db, { timezone: 'UTC', baseCurrency: 'USD', accounts: {} }, { period: '2026-07', version: '0.1.0' });
+  assert.match(footer, /via ccxt-kraken/);
 });

@@ -1,5 +1,5 @@
 import { toCsv } from '../csv.js';
-import { fmtUsdc, periodRows, banner, buildFooter, toolVersion } from './util.js';
+import { fmtUsdc, mdCell, periodRows, banner, buildFooter, toolVersion } from './util.js';
 
 export function revenueReport(db, cfg, period, { incomplete = [] } = {}) {
   const rows = periodRows(db, period, cfg.timezone);
@@ -12,12 +12,12 @@ export function revenueReport(db, cfg, period, { incomplete = [] } = {}) {
     g.fees += BigInt(r.facilitator_fee_atomic ?? 0);
     groups.set(key, g);
   }
-  const list = [...groups.values()].sort((a, b) => (a.gross < b.gross ? 1 : -1));
+  const list = [...groups.values()].sort((a, b) => (a.gross === b.gross ? 0 : a.gross < b.gross ? 1 : -1));
   const tot = list.reduce((t, g) => ({ count: t.count + g.count, gross: t.gross + g.gross, fees: t.fees + g.fees }), { count: 0, gross: 0n, fees: 0n });
 
   const header = '| Product | Endpoint | Chain | Settlements | Gross USDC | Fees USDC | Net USDC |';
   const sep = '|---|---|---|---:|---:|---:|---:|';
-  const line = (g) => `| ${g.product} | ${g.endpoint} | ${g.chain} | ${g.count} | ${fmtUsdc(g.gross)} | ${fmtUsdc(g.fees)} | ${fmtUsdc(g.gross - g.fees)} |`;
+  const line = (g) => `| ${mdCell(g.product)} | ${mdCell(g.endpoint)} | ${g.chain} | ${g.count} | ${fmtUsdc(g.gross)} | ${fmtUsdc(g.fees)} | ${fmtUsdc(g.gross - g.fees)} |`;
   const md = banner(incomplete) +
     `# Revenue statement — ${period}\n\n` +
     [header, sep, ...list.map(line), `| **TOTAL** | | | **${tot.count}** | **${fmtUsdc(tot.gross)}** | **${fmtUsdc(tot.fees)}** | **${fmtUsdc(tot.gross - tot.fees)}** |`].join('\n') +

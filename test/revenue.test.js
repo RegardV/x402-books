@@ -32,3 +32,15 @@ test('incomplete banner renders', () => {
   const { md } = revenueReport(db, CFG, '2026-07', { incomplete: [{ source: 'onchain', reason: 'explorer 500' }] });
   assert.match(md, /INCOMPLETE/);
 });
+test('escapes pipes in product/endpoint for markdown', () => {
+  const db = openLedger(':memory:');
+  upsertSettlement(db, {
+    tx_hash: '0x1', chain: 'base', ts: Math.floor(Date.parse('2026-07-10T10:00:00Z') / 1000),
+    payer: 'p', payee: 'w', amount_atomic: '1000000', source: 'sandbox', product_id: 'a|b',
+    rail: 'x402',
+  });
+  const { md, csv } = revenueReport(db, CFG, '2026-07');
+  assert.match(md, /a\\\|b/);
+  assert.doesNotMatch(md, /\| b \|/);
+  assert.match(csv, /a\|b/);
+});
