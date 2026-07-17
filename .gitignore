@@ -1,0 +1,7 @@
+node_modules/
+books.json
+reports/
+*.db
+*.db-shm
+*.db-wal
+.superpowers/

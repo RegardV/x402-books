@@ -1,0 +1,9 @@
+{
+  "wallets": ["0x0000000000000000000000000000000000000000"],
+  "sandboxDbs": [],
+  "baseCurrency": "USD",
+  "jurisdiction": "NONE",
+  "timezone": "UTC",
+  "basescanApiKey": "",
+  "dataDir": "~/.x402-books"
+}

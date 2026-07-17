@@ -1,0 +1,10 @@
+{
+  "name": "x402-books",
+  "version": "0.1.0",
+  "description": "Accountant-ready reports for x402 sellers - local-first, zero dependencies. By realandworks.com",
+  "type": "module",
+  "bin": { "x402-books": "bin/x402-books.js" },
+  "scripts": { "test": "node --test test/" },
+  "license": "MIT",
+  "engines": { "node": ">=22.5" }
+}
