@@ -1,0 +1,141 @@
+#!/usr/bin/env node
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import { loadConfig, ConfigError } from '../src/config.js';
+import { openLedger, statusSummary } from '../src/ledger.js';
+import { ensureRates, RateError } from '../src/rates.js';
+import { ingestOnchain } from '../src/ingest/onchain.js';
+import { ingestSandbox } from '../src/ingest/sandbox.js';
+import { dayInTz, periodRows, ytdMonths, toolVersion } from '../src/report/util.js';
+import { revenueReport } from '../src/report/revenue.js';
+import { valuationReport } from '../src/report/valuation.js';
+import { costBasisReport } from '../src/report/costbasis.js';
+import { journalReport } from '../src/report/journal.js';
+import { packZa } from '../src/report/pack_za.js';
+import { packUs } from '../src/report/pack_us.js';
+
+const USAGE = `x402-books v${toolVersion()} — accountant-ready reports for x402 sellers (realandworks.com)
+
+Usage:
+  x402-books init
+  x402-books sync   [--config F] [--from-block N] [--skip-onchain] [--stale-rates-ok]
+  x402-books report --period YYYY-MM [--out DIR] [--config F] [--no-sync] [--skip-onchain] [--stale-rates-ok]
+  x402-books status [--config F]
+`;
+
+function parseArgs(argv) {
+  const args = { _: [], flags: {} };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--skip-onchain' || a === '--stale-rates-ok' || a === '--no-sync') args.flags[a.slice(2)] = true;
+    else if (a.startsWith('--')) args.flags[a.slice(2)] = argv[++i];
+    else args._.push(a);
+  }
+  return args;
+}
+
+async function doSync(db, cfg, flags) {
+  const incomplete = [];
+  if (!flags['skip-onchain']) {
+    try {
+      const r = await ingestOnchain(db, cfg, { fromBlock: flags['from-block'] ? parseInt(flags['from-block'], 10) : null });
+      for (const w of r.warnings) console.warn(`warning: ${w}`);
+      console.log(`onchain: +${r.inserted} inserted, ${r.updated} updated (head ${r.toBlock})`);
+    } catch (e) {
+      incomplete.push({ source: e.source ?? 'onchain', reason: e.message });
+    }
+  }
+  const sb = ingestSandbox(db, cfg);
+  console.log(`sandbox: +${sb.inserted} inserted, ${sb.updated} updated`);
+  incomplete.push(...sb.errors.map((e) => ({ source: e.source, reason: e.message })));
+  return incomplete;
+}
+
+async function ensurePeriodRates(db, cfg, period, flags) {
+  const months = cfg.jurisdiction === 'NONE' ? [period] : ytdMonths(period);
+  const days = [...new Set(months.flatMap((m) => periodRows(db, m, cfg.timezone).map((r) => dayInTz(r.ts, cfg.timezone))))];
+  try {
+    await ensureRates(db, { days, baseCurrency: cfg.baseCurrency, staleOk: !!flags['stale-rates-ok'] });
+    return [];
+  } catch (e) {
+    if (e instanceof RateError) return [{ source: 'rates', reason: e.message }];
+    throw e;
+  }
+}
+
+export async function runCli(argv) {
+  const { _: [cmd], flags } = parseArgs(argv);
+  try {
+    if (cmd === 'init') {
+      if (existsSync('books.json')) {
+        console.log('books.json already exists — not touching it.');
+        return 0;
+      }
+      writeFileSync('books.json', readFileSync(new URL('../books.json.example', import.meta.url)));
+      console.log('wrote books.json — edit wallets/currency/jurisdiction, then: x402-books report --period YYYY-MM');
+      return 0;
+    }
+    if (!['sync', 'report', 'status'].includes(cmd)) {
+      console.error(USAGE);
+      return 2;
+    }
+    const cfg = loadConfig(flags.config ?? 'books.json');
+    const db = openLedger(cfg.dataDir);
+
+    if (cmd === 'status') {
+      const s = statusSummary(db);
+      console.log(JSON.stringify({ version: toolVersion(), wallets: cfg.wallets, ...s }, null, 2));
+      return 0;
+    }
+    if (cmd === 'sync') {
+      const incomplete = await doSync(db, cfg, flags);
+      for (const e of incomplete) console.error(`INCOMPLETE ${e.source}: ${e.reason}`);
+      return incomplete.length ? 1 : 0;
+    }
+    const period = flags.period;
+    if (!period || !/^\d{4}-\d{2}$/.test(period)) {
+      console.error('report requires --period YYYY-MM\n' + USAGE);
+      return 2;
+    }
+    const incomplete = [];
+    if (!flags['no-sync']) incomplete.push(...await doSync(db, cfg, flags));
+    incomplete.push(...await ensurePeriodRates(db, cfg, period, flags));
+
+    const outDir = path.join(flags.out ?? 'reports', period);
+    mkdirSync(outDir, { recursive: true });
+    const jobs = [
+      ['revenue', () => revenueReport(db, cfg, period, { incomplete })],
+      ['valuation', () => valuationReport(db, cfg, period, { incomplete })],
+      ['journal', () => journalReport(db, cfg, period, { incomplete })],
+      ['costbasis', () => costBasisReport(db, cfg, period, { incomplete })],
+    ];
+    if (cfg.jurisdiction === 'ZA') jobs.push(['pack_za', () => packZa(db, cfg, period, { incomplete })]);
+    if (cfg.jurisdiction === 'US') jobs.push(['pack_us', () => packUs(db, cfg, period, { incomplete })]);
+    for (const [name, fn] of jobs) {
+      try {
+        const { md, csv } = fn();
+        writeFileSync(path.join(outDir, `${name}.md`), md);
+        writeFileSync(path.join(outDir, `${name}.csv`), csv);
+        console.log(`wrote ${path.join(outDir, name)}.{md,csv}`);
+      } catch (e) {
+        if (e instanceof RateError) {
+          incomplete.push({ source: 'rates', reason: e.message });
+          writeFileSync(path.join(outDir, `${name}.md`), `> WARNING: INCOMPLETE — ${e.message}\n`);
+          console.error(`INCOMPLETE ${name}: ${e.message}`);
+        } else throw e;
+      }
+    }
+    for (const e of incomplete) console.error(`INCOMPLETE ${e.source}: ${e.reason}`);
+    return incomplete.length ? 1 : 0;
+  } catch (e) {
+    if (e instanceof ConfigError) {
+      console.error(e.message);
+      return 2;
+    }
+    throw e;
+  }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  process.exit(await runCli(process.argv.slice(2)));
+}
