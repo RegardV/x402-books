@@ -74,6 +74,10 @@ one). Edit it:
 - `timezone` — IANA timezone string (default `UTC`); every report date is the
   settlement timestamp converted to this zone, and every footer states it.
 - `dataDir` — where the ledger (`books.db`) and rate cache live (`~` is expanded).
+- `chains` — optional override of the USDC contract address per chain (the Base
+  default shown is correct for everyone; touch only if the contract migrates).
+- `basescanApiKey` — optional; when set, on-chain scanning uses Basescan instead of
+  the keyless Blockscout API (higher rate limits).
 - `accounts` — optional; the defaults above are used when omitted.
 
 Config validation fails fast, naming the bad field — no partial runs on bad config.

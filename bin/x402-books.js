@@ -79,6 +79,10 @@ export async function runCli(argv) {
       console.error(USAGE);
       return 2;
     }
+    if (cmd === 'report' && (!flags.period || !/^\d{4}-\d{2}$/.test(flags.period))) {
+      console.error('report requires --period YYYY-MM\n' + USAGE);
+      return 2;
+    }
     const cfg = loadConfig(flags.config ?? 'books.json');
     const db = openLedger(cfg.dataDir);
 
@@ -93,10 +97,6 @@ export async function runCli(argv) {
       return incomplete.length ? 1 : 0;
     }
     const period = flags.period;
-    if (!period || !/^\d{4}-\d{2}$/.test(period)) {
-      console.error('report requires --period YYYY-MM\n' + USAGE);
-      return 2;
-    }
     const incomplete = [];
     if (!flags['no-sync']) incomplete.push(...await doSync(db, cfg, flags));
     incomplete.push(...await ensurePeriodRates(db, cfg, period, flags));
@@ -111,19 +111,35 @@ export async function runCli(argv) {
     ];
     if (cfg.jurisdiction === 'ZA') jobs.push(['pack_za', () => packZa(db, cfg, period, { incomplete })]);
     if (cfg.jurisdiction === 'US') jobs.push(['pack_us', () => packUs(db, cfg, period, { incomplete })]);
-    for (const [name, fn] of jobs) {
-      try {
-        const { md, csv } = fn();
-        writeFileSync(path.join(outDir, `${name}.md`), md);
-        writeFileSync(path.join(outDir, `${name}.csv`), csv);
-        console.log(`wrote ${path.join(outDir, name)}.{md,csv}`);
-      } catch (e) {
-        if (e instanceof RateError) {
-          incomplete.push({ source: 'rates', reason: e.message });
-          writeFileSync(path.join(outDir, `${name}.md`), `> WARNING: INCOMPLETE — ${e.message}\n`);
-          console.error(`INCOMPLETE ${name}: ${e.message}`);
-        } else throw e;
+    // Two-pass generation: if a report job itself surfaces a new failure
+    // (e.g. RateError), regenerate so EVERY report carries the final banner —
+    // nothing is written to disk until the incomplete list is stable.
+    let results = [];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const before = incomplete.length;
+      results = [];
+      for (const [name, fn] of jobs) {
+        try {
+          results.push([name, fn()]);
+        } catch (e) {
+          if (!(e instanceof RateError)) throw e;
+          if (!incomplete.some((i) => i.source === 'rates' && i.reason === e.message)) {
+            incomplete.push({ source: 'rates', reason: e.message });
+          }
+          results.push([name, null]);
+        }
       }
+      if (incomplete.length === before) break;
+    }
+    for (const [name, r] of results) {
+      if (r === null) {
+        writeFileSync(path.join(outDir, `${name}.md`), `> WARNING: INCOMPLETE — report could not be generated (see rates errors)\n`);
+        console.error(`INCOMPLETE ${name}: not generated`);
+        continue;
+      }
+      writeFileSync(path.join(outDir, `${name}.md`), r.md);
+      writeFileSync(path.join(outDir, `${name}.csv`), r.csv);
+      console.log(`wrote ${path.join(outDir, name)}.{md,csv}`);
     }
     for (const e of incomplete) console.error(`INCOMPLETE ${e.source}: ${e.reason}`);
     return incomplete.length ? 1 : 0;
