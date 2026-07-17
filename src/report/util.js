@@ -35,6 +35,10 @@ export function banner(incomplete) {
   const lines = incomplete.map((e) => `> - **${e.source}**: ${e.reason}`).join('\n');
   return `> WARNING: ⚠ **INCOMPLETE** — some data sources failed; totals below may be understated.\n${lines}\n\n`;
 }
+export function ytdMonths(period) {
+  const [y, m] = period.split('-').map(Number);
+  return Array.from({ length: m }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`);
+}
 export function buildFooter(db, cfg, { period, version }) {
   const s = statusSummary(db);
   const src = Object.entries(s.bySource).map(([k, v]) => `${k}: ${v} rows`).join(', ') || 'none';
