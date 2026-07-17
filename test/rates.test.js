@@ -56,3 +56,30 @@ test('USDC gap without staleOk throws RateError; with staleOk carries', async ()
   await ensureRates(db2, { days: ['2026-07-01', '2026-07-02'], baseCurrency: 'USD', fetchFn: fakeFetch([cgGap]), staleOk: true });
   assert.match(getRate(db2, '2026-07-02', 'USDC/USD').provenance, /carried/);
 });
+test('fiat gap before any known rate throws RateError', async () => {
+  const db = openLedger(':memory:');
+  const cgOk = ['api.coingecko.com', { prices: [[Date.UTC(2026, 6, 1, 23), 0.9998], [Date.UTC(2026, 6, 2, 23), 1.0001]] }];
+  const fxEmpty = ['api.frankfurter.app', { rates: {} }];
+  await assert.rejects(
+    () => ensureRates(db, { days: ['2026-07-01', '2026-07-02'], baseCurrency: 'ZAR', fetchFn: fakeFetch([cgOk, fxEmpty]) }),
+    RateError,
+  );
+});
+test('retries once on network error then succeeds', async () => {
+  const db = openLedger(':memory:');
+  let callCount = 0;
+  const retryFetch = async (url) => {
+    callCount++;
+    if (callCount === 1 && url.includes('coingecko')) {
+      throw new Error('network timeout');
+    }
+    for (const [pat, resp] of [CG, FX]) {
+      if (url.includes(pat)) return { ok: true, status: 200, json: async () => resp };
+    }
+    return { ok: false, status: 500, json: async () => ({}) };
+  };
+  const r = await ensureRates(db, { days: ['2026-07-01'], baseCurrency: 'ZAR', fetchFn: retryFetch });
+  assert.equal(getRate(db, '2026-07-01', 'USDC/USD').rate, 0.9998);
+  assert.equal(getRate(db, '2026-07-01', 'USD/ZAR').rate, 18.0);
+  assert.ok(r.fetched > 0);
+});

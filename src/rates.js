@@ -21,6 +21,7 @@ async function fetchJson(fetchFn, url) {
   }
 }
 
+// Intentionally UTC-anchored: rate providers key prices by UTC day, distinct from dayInTz() settlement attribution.
 function utcDay(ms) { return new Date(ms).toISOString().slice(0, 10); }
 
 export async function ensureRates(db, { days, baseCurrency, fetchFn = globalThis.fetch, staleOk = false }) {
