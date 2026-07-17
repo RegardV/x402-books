@@ -19,6 +19,9 @@ export function ingestSandbox(db, cfg) {
     }
     let sdb;
     try {
+      // readOnly, deliberately NOT immutable=1: the sandbox DB is live (WAL) —
+      // immutable disables locking/change detection against a changing file.
+      // Accepted side effect: open may create -wal/-shm sidecars if absent.
       sdb = new DatabaseSync(file, { readOnly: true });
       const rows = sdb.prepare(`
         SELECT s.ts, s.amount_usdc, s.payer, s.tx_hash, s.facilitator, p.sku
