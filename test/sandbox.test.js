@@ -19,6 +19,8 @@ function fixtureDb() {
   ins.run('2026-07-16T10:00:00.000Z', 1, '1.00', '0xbuyer1', '0xmain1', 'base', 'cdp');
   ins.run('2026-07-16T11:00:00.000Z', null, '0.02', '0xbuyer2', '0xmain2', 'base', 'cdp');
   ins.run('2026-07-15T09:00:00.000Z', 1, '0.01', '0xbuyer3', '0xtest1', 'base-sepolia', 'cdp');
+  ins.run('2026-07-16T15:07:00.000Z', 1, '1', '0xbuyer4', '0xcaip1', 'eip155:8453', 'cdp');
+  ins.run('2026-07-15T08:41:00.000Z', 1, '0.01', '0xbuyer5', '0xcaip2', 'eip155:84532', 'cdp');
   db.close();
   return f;
 }
@@ -35,10 +37,12 @@ test('ingests mainnet rows only, joins sku, testnet excluded', () => {
   const led = openLedger(':memory:');
   const cfg = { sandboxDbs: [fixtureDb()], wallets: ['0x' + 'AB'.repeat(20)] };
   const r = ingestSandbox(led, cfg);
-  assert.equal(r.inserted, 2);
+  assert.equal(r.inserted, 3);
   assert.equal(r.errors.length, 0);
   const rows = settlementsAll(led);
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 3);
+  assert.ok(rows.find((x) => x.tx_hash === '0xcaip1'), 'CAIP-2 mainnet row ingested');
+  assert.ok(!rows.find((x) => x.tx_hash === '0xcaip2'), 'CAIP-2 testnet row excluded');
   const attributed = rows.find((x) => x.tx_hash === '0xmain1');
   assert.equal(attributed.product_id, 'soil-guide');
   assert.equal(attributed.rail, 'x402');
@@ -52,5 +56,5 @@ test('missing db collected as error, run continues', () => {
   const r = ingestSandbox(led, cfg);
   assert.equal(r.errors.length, 1);
   assert.match(r.errors[0].message, /missing.db/);
-  assert.equal(r.inserted, 2);
+  assert.equal(r.inserted, 3);
 });

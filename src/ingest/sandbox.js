@@ -26,8 +26,10 @@ export function ingestSandbox(db, cfg) {
       const rows = sdb.prepare(`
         SELECT s.ts, s.amount_usdc, s.payer, s.tx_hash, s.facilitator, p.sku
         FROM settlements s LEFT JOIN products p ON p.id = s.product_id
-        WHERE s.network = 'base'
+        WHERE s.network IN ('base', 'eip155:8453')
       `).all();
+      // 'eip155:8453' is Base mainnet in CAIP-2 form — what live x402-sandbox
+      // installs actually write (verified against production data 2026-07-17).
       for (const r of rows) {
         const ts = Math.floor(Date.parse(r.ts) / 1000);
         if (!Number.isFinite(ts)) {
