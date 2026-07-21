@@ -26,9 +26,10 @@ export function journalReport(db, cfg, period, { incomplete = [], to = null } = 
   }
   const csv = toCsv(['Date', 'Description', 'Account', 'Debit', 'Credit'], out);
   const md = banner(incomplete) +
-    `# Journal (Xero/QuickBooks import) — ${label} (${cfg.baseCurrency})\n\n` +
-    `${out.length} journal lines from ${rows.length} settlements (daily x product rollup).\n` +
-    `Import the CSV; account names configurable in books.json accounts block.\n` +
+    `# Journal (double-entry) — ${label} (${cfg.baseCurrency})\n\n` +
+    `${out.length} journal lines from ${rows.length} settlements (daily x product rollup), debits = credits.\n` +
+    `Generic journal shape — maps into Xero or QuickBooks with light column work, but is not a native\n` +
+    `import file for either. Account names are configurable in the books.json accounts block.\n` +
     buildFooter(db, cfg, { period: label, version: toolVersion() });
   return { md, csv };
 }

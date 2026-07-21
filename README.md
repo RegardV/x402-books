@@ -1,12 +1,18 @@
 # x402-books
 
-Accountant-ready reports for x402 sellers — local-first, zero dependencies.
+Revenue recognition for x402 sellers — local-first, zero dependencies.
 By [realandworks.com](https://realandworks.com).
+
+**Scope, stated up front:** this does revenue recognition for x402 settlements and
+nothing else. Not expenses, VAT, capital gains, or your balance sheet. It is a feeder
+into your accounting system, not a replacement for one — it produces the input your
+accountant can't, because the data lives on-chain at six decimal places under rates that
+changed daily.
 
 ## The problem
 
 x402 sellers earn micro-revenue — thousands of $0.01–$1.00 USDC settlements — across
-chains and rails, with zero accounting tooling: facilitators settle payments but don't
+chains and rails, and their books can't see it: facilitators settle payments but don't
 report on them. Generic crypto-accounting tools (Koinly, Cryptio, …) price per
 transaction, which breaks down at micropayment volume, and see only raw transfers with
 no x402 semantics (which product, which endpoint, gross vs fee) — and QuickBooks itself
@@ -22,14 +28,19 @@ Run `x402-books report --period YYYY-MM` and get six accountant-ready outputs, e
 - **revenue** — gross/net USDC and settlement counts, grouped by product, endpoint, and
   chain, with unattributed on-chain revenue broken out so totals always reconcile.
 - **valuation** — per-settlement fiat value at that day's rates, line items + daily summary.
-- **journal** — Xero/QuickBooks-importable CSV, one line per (day × product) rollup,
-  with configurable account names.
+- **journal** — balanced double-entry CSV (`Date, Description, Account, Debit, Credit`),
+  one line per (day × product) rollup, with configurable account names. A generic journal
+  shape that maps into Xero or QuickBooks with light column work — it is not a native
+  import file for either (no QuickBooks journal number, account names rather than Xero
+  account codes).
 - **pack_za** *(jurisdiction=ZA)* — provisional-tax-oriented income summary in ZAR,
   monthly totals + YTD.
 - **pack_us** *(jurisdiction=US)* — Schedule-C-oriented ordinary-income summary in USD
   at receipt FMV, monthly totals + YTD.
-- **costbasis** — CSV of receipt lots (date, asset, quantity, unit FMV, basis) formatted
-  for import into Koinly-class tools, for the disposal/CGT side this tool doesn't cover.
+- **costbasis** — CSV of receipt lots (`date, asset, quantity, unit_price_usd,
+  total_basis_usd`) for the disposal/CGT side this tool doesn't cover. A generic lot
+  export for your CGT tool or accountant — **not** a drop-in import for any specific
+  product; dedicated tools expect their own column sets, so expect to map columns.
 
 ## Install
 
@@ -128,9 +139,15 @@ usage error.
 ## Scope boundary
 
 x402-books covers the income side only: what came in, when, in what fiat terms, and to
-which product. It does not track disposal or capital gains on held crypto — the
-**costbasis** report exists specifically to hand that off, in Koinly-compatible form, to
-a tool built for it.
+which product. It is not an accounting system — no expenses, no accounts payable or
+receivable, no VAT, no balance sheet, no payroll. It produces one input for the system
+you already use.
+
+It does not track disposal or capital gains on held crypto either. The **costbasis**
+report exists to hand that off: a receipt-lot export you carry into a CGT tool or give to
+an accountant. That handoff is a CSV, not an integration — the lots carry no `tx_hash`
+yet, so a downstream tool can't automatically dedupe them against transfers it already
+imported.
 
 ## Serve it as a paid x402 endpoint
 
