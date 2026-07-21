@@ -4,7 +4,7 @@ import { buildChallenge, challengeHeader, decodePayment, receiptHeader, validate
 
 const product = {
   url: 'https://svc.example/report', description: 'x402 books', mimeType: 'application/json',
-  amountMicro: '20000', network: 'eip155:84532', payTo: '0x26EED96B8e61a9123Ff29C54D00fEb452539E33E',
+  amountMicro: '20000', network: 'eip155:84532', payTo: '0x1111111111111111111111111111111111111111',
 };
 
 test('buildChallenge produces spec-shaped v2 402 with testnet USDC', () => {
