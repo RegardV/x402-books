@@ -1,0 +1,39 @@
+{
+  "_comment": "Merge these two entries into your x402-sandbox products.json `products` array, then restart the gateway (systemctl --user restart x402-sandbox). Both proxy to the x402-books backend on 127.0.0.1:8404 - the gateway owns payment, wallet, and facilitator config; this backend just computes. Adjust price to taste.",
+
+  "products": [
+    {
+      "sku": "books",
+      "title": "x402 Books (per report)",
+      "description": "Accountant-ready books for any x402 seller wallet. POST {\"wallet\": \"0x...\", \"period\": \"YYYY-MM\", \"jurisdiction\": \"ZA|US|NONE\"} and get revenue, valuation, journal, and cost-basis reports from public on-chain settlements.",
+      "price": "$0.02",
+      "route": "POST /books",
+      "proxyUrl": "http://127.0.0.1:8404/report",
+      "discoverable": true
+    },
+    {
+      "sku": "books-web",
+      "title": "x402 Books (human web report)",
+      "description": "Browser-payable books report. Fill in wallet, period, jurisdiction on the form, pay with your Base wallet, get revenue/valuation/journal/costbasis back.",
+      "price": "$0.02",
+      "route": "GET /books-web",
+      "proxyUrl": "http://127.0.0.1:8404/report",
+      "discoverable": false,
+      "humanForm": [
+        { "name": "wallet", "label": "Seller wallet to report on", "type": "text", "placeholder": "0x…", "pattern": "0x[0-9a-fA-F]{40}", "required": true },
+        { "name": "period", "label": "Month (or range start)", "type": "month", "required": true },
+        { "name": "to", "label": "To (optional — for a range)", "type": "month", "blankLabel": "— single month —" },
+        {
+          "name": "jurisdiction",
+          "label": "Jurisdiction (tax pack)",
+          "type": "select",
+          "options": [
+            { "value": "NONE", "label": "None — USD only" },
+            { "value": "ZA", "label": "South Africa — ZAR pack" },
+            { "value": "US", "label": "United States — Schedule-C pack" }
+          ]
+        }
+      ]
+    }
+  ]
+}

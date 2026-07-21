@@ -1,0 +1,39 @@
+[Unit]
+# systemd --user unit for the x402-books report backend.
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/x402-books-backend.service ~/.config/systemd/user/
+#   # edit the two CHANGE ME values below, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now x402-books-backend
+#
+# If this must survive logout (i.e. a real server), also run:
+#   sudo loginctl enable-linger $USER
+Description=x402-books backend - report compute (gateway-proxied, payments handled by an x402 gateway)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# CHANGE ME - absolute path to your x402-books clone
+WorkingDirectory=/home/YOU/x402-books
+
+# CHANGE ME - absolute path to node >= 22.5 (`command -v node`).
+# An absolute path is required: systemd does not load your shell profile, so
+# nvm-managed installs are not on PATH here.
+ExecStart=/usr/bin/node server/backend.js
+
+# Port the gateway proxies to. Must match proxyUrl in the gateway's product config.
+Environment=PORT=8404
+
+# Optional: Basescan API key for higher on-chain scan rate limits.
+# Keyless Blockscout is used when unset.
+#Environment=X402_BOOKS_BASESCAN_KEY=your_key_here
+
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

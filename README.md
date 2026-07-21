@@ -87,6 +87,7 @@ Config validation fails fast, naming the bad field — no partial runs on bad co
 ```sh
 x402-books sync                          # run ingesters + fetch missing rates
 x402-books report --period 2026-07       # sync (implicit) + write all reports
+x402-books report --period 2026-01 --to 2026-07   # multi-month range
 x402-books status                        # wallets, watermarks, row counts, cached rates
 ```
 
@@ -95,6 +96,7 @@ x402-books status                        # wallets, watermarks, row counts, cach
 
 | Flag | Applies to | Meaning |
 |---|---|---|
+| `--to YYYY-MM` | `report` | last month of an inclusive range (must be >= `--period`); omit for a single month. Output lands in `<out>/<period>_<to>/` |
 | `--config F` | all | path to `books.json` (default `./books.json`) |
 | `--out DIR` | `report` | output directory (default `./reports`) |
 | `--from-block N` | `sync`, `report` | first block to scan on a fresh on-chain sync |
@@ -130,12 +132,37 @@ which product. It does not track disposal or capital gains on held crypto — th
 **costbasis** report exists specifically to hand that off, in Koinly-compatible form, to
 a tool built for it.
 
+## Serve it as a paid x402 endpoint
+
+`server/` turns the same report pipeline into an HTTP service:
+
+- **`backend.js`** — unpaid compute on `127.0.0.1:$PORT` (default 8404). Run it behind an
+  x402 gateway (e.g. x402-sandbox's `proxyUrl` product) so the gateway owns the payment,
+  the wallet, and the facilitator config. This is the deployment we run.
+- **`serve.js`** — standalone variant that speaks x402 itself, for running without a gateway.
+
+Both accept `POST {wallet, period, jurisdiction, to?, baseCurrency?}` (and the same fields
+as GET query params) and return the reports as JSON.
+
+```sh
+PORT=8404 node server/backend.js
+```
+
+Full install — systemd unit, gateway product config, mainnet notes — in
+**[docs/DEPLOY.md](./docs/DEPLOY.md)**, with copy-paste templates in [`deploy/`](./deploy).
+
+Note the scope limit: pointed at an arbitrary wallet, output is **unattributed** — the
+chain records from/to/amount/time, never which product a payment was for. Product
+attribution exists only in the seller's own gateway log, i.e. in owner mode via
+`sandboxDbs`.
+
 ## Roadmap
 
 Not built in v1, recorded for later: CDP facilitator + Stripe CSV importers (hybrid-rail
-reconciliation), a Solana ingester, and an x402-payable hosted report endpoint served
-through the owner's x402-sandbox.
+reconciliation), and a Solana ingester.
 
 ## License
 
-MIT. Credits: the [x402 protocol](https://x402.org) (Coinbase / x402 Foundation).
+[MIT](./LICENSE) — © 2026 RegardV (realandworks.com). Use it, fork it, run it
+commercially. Credits: the [x402 protocol](https://x402.org) (Coinbase / x402
+Foundation).
