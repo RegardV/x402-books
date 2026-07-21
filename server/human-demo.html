@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>x402 Books — buy a report</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 34rem; margin: 3rem auto; padding: 0 1.25rem; }
+  h1 { font-size: 1.35rem; margin-bottom: .25rem; }
+  p.lede { color: #667; margin-top: 0; }
+  label { display: block; margin: 1rem 0 .3rem; font-weight: 600; }
+  input, select { width: 100%; padding: .55rem .6rem; font: inherit; border: 1px solid #8888; border-radius: .4rem; background: transparent; color: inherit; box-sizing: border-box; }
+  small { color: #889; }
+  button { margin-top: 1.5rem; width: 100%; padding: .7rem; font: inherit; font-weight: 600; border: 0; border-radius: .5rem; background: #2f6feb; color: #fff; cursor: pointer; }
+  button:hover { background: #2559c9; }
+  .err { color: #c0392b; margin-top: .75rem; min-height: 1.2em; }
+</style>
+</head>
+<body>
+  <h1>x402 Books — buy a report</h1>
+  <p class="lede">Enter what to report on, then pay <strong>$0.02 USDC</strong> with your Base wallet. The wallet modal opens on submit.</p>
+
+  <form id="f">
+    <label for="wallet">Seller wallet to report on</label>
+    <input id="wallet" name="wallet" placeholder="0x…" pattern="0x[0-9a-fA-F]{40}" required>
+    <small>Any public Base payTo address. Reads on-chain settlements only.</small>
+
+    <label for="period">Period</label>
+    <input id="period" name="period" type="month" required>
+
+    <label for="jurisdiction">Jurisdiction (tax pack)</label>
+    <select id="jurisdiction" name="jurisdiction">
+      <option value="NONE">None — USD only</option>
+      <option value="ZA">South Africa — ZAR provisional-tax pack</option>
+      <option value="US">United States — Schedule-C pack</option>
+    </select>
+
+    <button type="submit">Buy report — sign in wallet</button>
+    <div class="err" id="err"></div>
+  </form>
+
+<script>
+  // Where the paid endpoint lives. The <form> navigates here so the sandbox
+  // paywall modal fires at ITS origin (same-origin retry after payment).
+  // Default: prod (mainnet) tunnel. Override for testing:
+  //   open human-demo.html?base=http://127.0.0.1:8412  → testnet sandbox instance
+  const BASE = new URLSearchParams(location.search).get("base") || "https://x402.inkypyrus.com";
+
+  document.getElementById("f").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const err = document.getElementById("err");
+    const wallet = document.getElementById("wallet").value.trim();
+    const period = document.getElementById("period").value; // native YYYY-MM
+    const jurisdiction = document.getElementById("jurisdiction").value;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) { err.textContent = "Wallet must be 0x + 40 hex chars."; return; }
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) { err.textContent = "Pick a month."; return; }
+    const url = `${BASE}/books-web?wallet=${encodeURIComponent(wallet)}&period=${encodeURIComponent(period)}&jurisdiction=${encodeURIComponent(jurisdiction)}`;
+    window.location.href = url; // navigate → sandbox serves paywall → sign → report
+  });
+</script>
+</body>
+</html>

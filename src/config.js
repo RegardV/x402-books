@@ -22,18 +22,23 @@ function bad(field, why) {
   throw new ConfigError(`books.json: ${field} ${why}`);
 }
 
-export function loadConfig(file = 'books.json') {
-  let raw;
-  try {
-    raw = readFileSync(file, 'utf8');
-  } catch {
-    throw new ConfigError(`config file not found: ${file} (run: x402-books init)`);
-  }
+// Accepts a books.json path (CLI) or a pre-parsed config object (server, one per request).
+export function loadConfig(source = 'books.json') {
   let user;
-  try {
-    user = JSON.parse(raw);
-  } catch (e) {
-    throw new ConfigError(`config file ${file} is not valid JSON: ${e.message}`);
+  if (source !== null && typeof source === 'object') {
+    user = source;
+  } else {
+    let raw;
+    try {
+      raw = readFileSync(source, 'utf8');
+    } catch {
+      throw new ConfigError(`config file not found: ${source} (run: x402-books init)`);
+    }
+    try {
+      user = JSON.parse(raw);
+    } catch (e) {
+      throw new ConfigError(`config file ${source} is not valid JSON: ${e.message}`);
+    }
   }
   const cfg = { ...DEFAULTS, ...user };
   cfg.accounts = { ...DEFAULTS.accounts, ...(user.accounts || {}) };
