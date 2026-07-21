@@ -59,8 +59,12 @@ async function explorerLogs(fetchFn, cfg, wallet, fromBlock, toBlock, sleepMs) {
     const q = `${url}?module=logs&action=getLogs&fromBlock=${from}&toBlock=${toBlock}` +
       `&address=${cfg.chains.base.usdc}&topic0=${TRANSFER_TOPIC}&topic2=${pad32(wallet)}&topic0_2_opr=and${key}`;
     const d = await getJson(fetchFn, q);
-    if (d.status === '0' && !/no records/i.test(d.message ?? '')) throw new IngestError('onchain', `explorer: ${d.message}`);
     const batch = Array.isArray(d.result) ? d.result : [];
+    // status '0' with an array result just means "no logs" — the message wording
+    // varies by explorer (etherscan "No records found", blockscout "No logs found"),
+    // so only a NON-array result is a real error. Matching on message text sent the
+    // keyless-blockscout path into the RPC fallback and a full-range block walk.
+    if (d.status === '0' && !Array.isArray(d.result)) throw new IngestError('onchain', `explorer: ${d.message}`);
     out.push(...batch.map((e) => parseLog(e)));
     if (batch.length < 1000) return out;
     from = parseInt(batch.at(-1).blockNumber, 16) + 1;
