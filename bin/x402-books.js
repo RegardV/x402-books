@@ -7,7 +7,7 @@ import { openLedger, statusSummary, settlementsAll } from '../src/ledger.js';
 import { ensureRates, RateError } from '../src/rates.js';
 import { ingestOnchain } from '../src/ingest/onchain.js';
 import { ingestSandbox } from '../src/ingest/sandbox.js';
-import { dayInTz, periodRows, ytdMonths, toolVersion } from '../src/report/util.js';
+import { dayInTz, periodRows, ytdMonths, monthsInRange, toolVersion } from '../src/report/util.js';
 import { revenueReport } from '../src/report/revenue.js';
 import { valuationReport } from '../src/report/valuation.js';
 import { costBasisReport } from '../src/report/costbasis.js';
@@ -20,7 +20,7 @@ const USAGE = `x402-books v${toolVersion()} — accountant-ready reports for x40
 Usage:
   x402-books init
   x402-books sync   [--config F] [--from-block N] [--skip-onchain] [--stale-rates-ok]
-  x402-books report --period YYYY-MM [--out DIR] [--config F] [--no-sync] [--skip-onchain] [--stale-rates-ok]
+  x402-books report --period YYYY-MM [--to YYYY-MM] [--out DIR] [--config F] [--no-sync] [--skip-onchain] [--stale-rates-ok]
   x402-books status [--config F]
 `;
 
@@ -53,7 +53,11 @@ async function doSync(db, cfg, flags) {
 }
 
 async function ensurePeriodRates(db, cfg, period, flags) {
-  const months = cfg.jurisdiction === 'NONE' ? [period] : ytdMonths(period);
+  const to = flags.to || null;
+  const anchor = to ?? period;
+  const rangeMonths = to ? monthsInRange(period, to) : [period];
+  const taxMonths = cfg.jurisdiction === 'NONE' ? [] : ytdMonths(anchor);
+  const months = [...new Set([...rangeMonths, ...taxMonths])];
   const days = [...new Set(months.flatMap((m) => periodRows(db, m, cfg.timezone).map((r) => dayInTz(r.ts, cfg.timezone))))];
   try {
     await ensureRates(db, { days, baseCurrency: cfg.baseCurrency, staleOk: !!flags['stale-rates-ok'] });
@@ -84,6 +88,10 @@ export async function runCli(argv) {
       console.error('report requires --period YYYY-MM\n' + USAGE);
       return 2;
     }
+    if (cmd === 'report' && flags.to && (!/^\d{4}-(0[1-9]|1[0-2])$/.test(flags.to) || flags.to < flags.period)) {
+      console.error('--to must be YYYY-MM and >= --period (range is period..to)\n' + USAGE);
+      return 2;
+    }
     const cfg = loadConfig(flags.config ?? 'books.json');
     const db = openLedger(cfg.dataDir);
 
@@ -109,16 +117,18 @@ export async function runCli(argv) {
     if (!flags['no-sync']) incomplete.push(...await doSync(db, cfg, flags));
     incomplete.push(...await ensurePeriodRates(db, cfg, period, flags));
 
-    const outDir = path.join(flags.out ?? 'reports', period);
+    const to = flags.to || null;
+    const anchor = to ?? period; // tax packs are YTD as-of the latest month requested
+    const outDir = path.join(flags.out ?? 'reports', to ? `${period}_${to}` : period);
     mkdirSync(outDir, { recursive: true });
     const jobs = [
-      ['revenue', () => revenueReport(db, cfg, period, { incomplete })],
-      ['valuation', () => valuationReport(db, cfg, period, { incomplete })],
-      ['journal', () => journalReport(db, cfg, period, { incomplete })],
-      ['costbasis', () => costBasisReport(db, cfg, period, { incomplete })],
+      ['revenue', () => revenueReport(db, cfg, period, { incomplete, to })],
+      ['valuation', () => valuationReport(db, cfg, period, { incomplete, to })],
+      ['journal', () => journalReport(db, cfg, period, { incomplete, to })],
+      ['costbasis', () => costBasisReport(db, cfg, period, { incomplete, to })],
     ];
-    if (cfg.jurisdiction === 'ZA') jobs.push(['pack_za', () => packZa(db, cfg, period, { incomplete })]);
-    if (cfg.jurisdiction === 'US') jobs.push(['pack_us', () => packUs(db, cfg, period, { incomplete })]);
+    if (cfg.jurisdiction === 'ZA') jobs.push(['pack_za', () => packZa(db, cfg, anchor, { incomplete })]);
+    if (cfg.jurisdiction === 'US') jobs.push(['pack_us', () => packUs(db, cfg, anchor, { incomplete })]);
     // Two-pass generation: if a report job itself surfaces a new failure
     // (e.g. RateError), regenerate so EVERY report carries the final banner —
     // nothing is written to disk until the incomplete list is stable.

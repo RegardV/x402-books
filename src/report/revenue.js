@@ -1,8 +1,9 @@
 import { toCsv } from '../csv.js';
-import { fmtUsdc, mdCell, periodRows, banner, buildFooter, toolVersion } from './util.js';
+import { fmtUsdc, mdCell, selectRows, periodLabel, banner, buildFooter, toolVersion } from './util.js';
 
-export function revenueReport(db, cfg, period, { incomplete = [] } = {}) {
-  const rows = periodRows(db, period, cfg.timezone);
+export function revenueReport(db, cfg, period, { incomplete = [], to = null } = {}) {
+  const label = periodLabel(period, to);
+  const rows = selectRows(db, period, to, cfg.timezone);
   const groups = new Map();
   for (const r of rows) {
     const key = `${r.product_id ?? '(unattributed)'} ${r.endpoint ?? ''} ${r.chain}`;
@@ -19,9 +20,9 @@ export function revenueReport(db, cfg, period, { incomplete = [] } = {}) {
   const sep = '|---|---|---|---:|---:|---:|---:|';
   const line = (g) => `| ${mdCell(g.product)} | ${mdCell(g.endpoint)} | ${g.chain} | ${g.count} | ${fmtUsdc(g.gross)} | ${fmtUsdc(g.fees)} | ${fmtUsdc(g.gross - g.fees)} |`;
   const md = banner(incomplete) +
-    `# Revenue statement — ${period}\n\n` +
+    `# Revenue statement — ${label}\n\n` +
     [header, sep, ...list.map(line), `| **TOTAL** | | | **${tot.count}** | **${fmtUsdc(tot.gross)}** | **${fmtUsdc(tot.fees)}** | **${fmtUsdc(tot.gross - tot.fees)}** |`].join('\n') +
-    '\n' + buildFooter(db, cfg, { period, version: toolVersion() });
+    '\n' + buildFooter(db, cfg, { period: label, version: toolVersion() });
 
   const csv = toCsv(
     ['product', 'endpoint', 'chain', 'settlements', 'gross_usdc', 'fees_usdc', 'net_usdc'],

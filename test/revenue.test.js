@@ -26,6 +26,24 @@ test('groups by product, nets fees, totals reconcile', () => {
   assert.match(csv, /soil-guide,.*2,1.02/);
   assert.doesNotMatch(md, /INCOMPLETE/);
 });
+test('range: sums settlements across months and labels the span', () => {
+  const db = openLedger(':memory:');
+  const mk = (tx, atomic, iso) => upsertSettlement(db, {
+    tx_hash: tx, chain: 'base', ts: Math.floor(Date.parse(iso) / 1000),
+    payer: 'p', payee: 'w', amount_atomic: atomic, source: 'sandbox', product_id: 'soil-guide', rail: 'x402',
+  });
+  mk('0xa', '1000000', '2026-05-10T10:00:00Z'); // May
+  mk('0xb', '2000000', '2026-06-10T10:00:00Z'); // Jun
+  mk('0xc', '4000000', '2026-07-10T10:00:00Z'); // Jul (excluded from May–Jun)
+  const { md } = revenueReport(db, CFG, '2026-05', { to: '2026-06' });
+  assert.match(md, /# Revenue statement — 2026-05 – 2026-06/); // range label in title
+  assert.match(md, /3\.00/);   // May+Jun gross = 3.00, Jul's 4.00 excluded
+  assert.doesNotMatch(md, /7\.00/);
+  // single month still works (backward compatible)
+  const single = revenueReport(db, CFG, '2026-07').md;
+  assert.match(single, /# Revenue statement — 2026-07\n/);
+  assert.match(single, /4\.00/);
+});
 test('incomplete banner renders', () => {
   const db = openLedger(':memory:');
   seed(db);

@@ -1,7 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtUsdc, roundHalfUp, dayInTz, periodRows, banner, mdCell, buildFooter } from '../src/report/util.js';
+import { fmtUsdc, roundHalfUp, dayInTz, periodRows, rangeRows, selectRows, periodLabel, monthsInRange, banner, mdCell, buildFooter } from '../src/report/util.js';
 import { openLedger, upsertSettlement, putRate } from '../src/ledger.js';
+
+test('monthsInRange enumerates inclusive months across a year boundary', () => {
+  assert.deepEqual(monthsInRange('2026-07', '2026-07'), ['2026-07']);
+  assert.deepEqual(monthsInRange('2026-01', '2026-03'), ['2026-01', '2026-02', '2026-03']);
+  assert.deepEqual(monthsInRange('2025-11', '2026-02'), ['2025-11', '2025-12', '2026-01', '2026-02']);
+});
+test('periodLabel is a single month or a range', () => {
+  assert.equal(periodLabel('2026-07', null), '2026-07');
+  assert.equal(periodLabel('2026-07', '2026-07'), '2026-07');
+  assert.equal(periodLabel('2026-01', '2026-06'), '2026-01 – 2026-06');
+});
+test('rangeRows / selectRows select months inclusively', () => {
+  const db = openLedger(':memory:');
+  const mk = (tx, iso) => upsertSettlement(db, { tx_hash: tx, chain: 'base', ts: Math.floor(Date.parse(iso) / 1000), payer: 'p', payee: 'w', amount_atomic: '1', source: 'onchain' });
+  mk('0xmay', '2026-05-15T12:00:00Z');
+  mk('0xjun', '2026-06-15T12:00:00Z');
+  mk('0xjul', '2026-07-15T12:00:00Z');
+  mk('0xaug', '2026-08-15T12:00:00Z');
+  assert.deepEqual(rangeRows(db, '2026-06', '2026-07', 'UTC').map((r) => r.tx_hash).sort(), ['0xjul', '0xjun']);
+  // selectRows: no `to` → single month, same as periodRows
+  assert.deepEqual(selectRows(db, '2026-07', null, 'UTC').map((r) => r.tx_hash), ['0xjul']);
+  assert.deepEqual(selectRows(db, '2026-05', '2026-08', 'UTC').map((r) => r.tx_hash).sort(), ['0xaug', '0xjul', '0xjun', '0xmay']);
+});
 
 test('fmtUsdc', () => {
   assert.equal(fmtUsdc('1000000'), '1.00');

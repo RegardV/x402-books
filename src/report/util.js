@@ -30,6 +30,41 @@ export function periodRows(db, period, tz) {
   const toTs = Math.floor(Date.UTC(y, m, 1) / 1000) + 14 * 3600;
   return settlementsBetween(db, fromTs, toTs).filter((r) => dayInTz(r.ts, tz).startsWith(period));
 }
+
+// Settlements from the start of `fromP` to the end of `toP` (inclusive months),
+// tz-attributed. Assumes fromP <= toP (validated at the request boundary).
+export function rangeRows(db, fromP, toP, tz) {
+  const [fy, fm] = fromP.split('-').map(Number);
+  const [ty, tm] = toP.split('-').map(Number);
+  const fromTs = Math.floor(Date.UTC(fy, fm - 1, 1) / 1000) - 14 * 3600;
+  const toTs = Math.floor(Date.UTC(ty, tm, 1) / 1000) + 14 * 3600;
+  return settlementsBetween(db, fromTs, toTs).filter((r) => {
+    const ym = dayInTz(r.ts, tz).slice(0, 7);
+    return ym >= fromP && ym <= toP;
+  });
+}
+
+// One month or a range, depending on whether `to` is set and differs from `period`.
+export function selectRows(db, period, to, tz) {
+  return to && to !== period ? rangeRows(db, period, to, tz) : periodRows(db, period, tz);
+}
+
+// Human label for a single month or a range.
+export function periodLabel(period, to) {
+  return to && to !== period ? `${period} – ${to}` : period;
+}
+
+// Every "YYYY-MM" from fromP to toP inclusive.
+export function monthsInRange(fromP, toP) {
+  const [fy, fm] = fromP.split('-').map(Number);
+  const [ty, tm] = toP.split('-').map(Number);
+  const out = [];
+  for (let y = fy, m = fm; y < ty || (y === ty && m <= tm); ) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+    if (++m > 12) { m = 1; y++; }
+  }
+  return out;
+}
 export function banner(incomplete) {
   if (!incomplete || incomplete.length === 0) return '';
   const lines = incomplete.map((e) => `> - **${e.source}**: ${e.reason}`).join('\n');

@@ -1,9 +1,10 @@
 import { toCsv } from '../csv.js';
 import { valuedRows } from './valuation.js';
-import { roundHalfUp, banner, buildFooter, toolVersion } from './util.js';
+import { roundHalfUp, periodLabel, banner, buildFooter, toolVersion } from './util.js';
 
-export function journalReport(db, cfg, period, { incomplete = [] } = {}) {
-  const rows = valuedRows(db, cfg, period);
+export function journalReport(db, cfg, period, { incomplete = [], to = null } = {}) {
+  const label = periodLabel(period, to);
+  const rows = valuedRows(db, cfg, period, to);
   const groups = new Map(); // key: day + product
   for (const r of rows) {
     const key = `${r.day} ${r.product_id ?? '(unattributed)'}`;
@@ -25,9 +26,9 @@ export function journalReport(db, cfg, period, { incomplete = [] } = {}) {
   }
   const csv = toCsv(['Date', 'Description', 'Account', 'Debit', 'Credit'], out);
   const md = banner(incomplete) +
-    `# Journal (Xero/QuickBooks import) — ${period} (${cfg.baseCurrency})\n\n` +
+    `# Journal (Xero/QuickBooks import) — ${label} (${cfg.baseCurrency})\n\n` +
     `${out.length} journal lines from ${rows.length} settlements (daily x product rollup).\n` +
     `Import the CSV; account names configurable in books.json accounts block.\n` +
-    buildFooter(db, cfg, { period, version: toolVersion() });
+    buildFooter(db, cfg, { period: label, version: toolVersion() });
   return { md, csv };
 }
