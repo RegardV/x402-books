@@ -42,5 +42,16 @@ test('costbasis lots in USD', () => {
   const db = openLedger(':memory:');
   seed(db);
   const { csv } = costBasisReport(db, CFG, '2026-07');
-  assert.match(csv, /2026-07-10,USDC,1.00,0.9998,1/);
+  assert.match(csv, /2026-07-10,2026-07-10T10:00:00\.000Z,USDC,1\.00,0\.9998,1,0x1/);
+});
+test('costbasis carries tx_hash and a UTC instant so a CGT tool can dedupe lots', () => {
+  const db = openLedger(':memory:');
+  seed(db);
+  const { csv } = costBasisReport(db, CFG, '2026-07');
+  const [header, first] = csv.trim().split(/\r?\n/); // writer emits CRLF per RFC 4180
+  assert.equal(header, 'date,timestamp_utc,asset,quantity,unit_price_usd,total_basis_usd,tx_hash');
+  const cols = first.split(',');
+  assert.equal(cols.at(-1), '0x1');                  // tx_hash last, matching CGT-tool convention
+  assert.equal(cols[0], '2026-07-10');               // date stays in cfg.timezone
+  assert.equal(cols[1], '2026-07-10T10:00:00.000Z'); // full instant, explicitly UTC
 });

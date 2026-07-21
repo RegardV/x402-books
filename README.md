@@ -37,9 +37,10 @@ Run `x402-books report --period YYYY-MM` and get six accountant-ready outputs, e
   monthly totals + YTD.
 - **pack_us** *(jurisdiction=US)* — Schedule-C-oriented ordinary-income summary in USD
   at receipt FMV, monthly totals + YTD.
-- **costbasis** — CSV of receipt lots (`date, asset, quantity, unit_price_usd,
-  total_basis_usd`) for the disposal/CGT side this tool doesn't cover. A generic lot
-  export for your CGT tool or accountant — **not** a drop-in import for any specific
+- **costbasis** — CSV of receipt lots (`date, timestamp_utc, asset, quantity,
+  unit_price_usd, total_basis_usd, tx_hash`) for the disposal/CGT side this tool doesn't
+  cover. The hash and instant let a downstream tool reconcile these lots against transfers
+  it already imported. Still a generic export — **not** a drop-in import for any specific
   product; dedicated tools expect their own column sets, so expect to map columns.
 
 ## Install
@@ -145,9 +146,9 @@ you already use.
 
 It does not track disposal or capital gains on held crypto either. The **costbasis**
 report exists to hand that off: a receipt-lot export you carry into a CGT tool or give to
-an accountant. That handoff is a CSV, not an integration — the lots carry no `tx_hash`
-yet, so a downstream tool can't automatically dedupe them against transfers it already
-imported.
+an accountant. Each lot carries its `tx_hash` and a UTC instant, so a downstream tool can
+reconcile against transfers it already imported. It is still a CSV, not an integration —
+you map columns; nothing imports it as-is.
 
 ## Serve it as a paid x402 endpoint
 
