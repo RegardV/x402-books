@@ -1,3 +1,7 @@
+<p align="center">
+  <a href="https://realandworks.com"><img src="assets/banner.jpg" alt="x402 cashbook" width="760"></a>
+</p>
+
 # x402-books
 
 Revenue recognition for x402 sellers — local-first, zero dependencies.
